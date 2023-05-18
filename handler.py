@@ -1,9 +1,9 @@
 import os
-
 import requests
 import datetime
 import asyncio
 import telegram
+from dotenv import load_dotenv
 
 
 def arweave_data(path):
@@ -64,6 +64,7 @@ def send_tg_msg(tg_msg):
 
 
 def run():
+    load_dotenv()
     data = fetch_data()
     print('Fetched date: {}'.format(data))
     msg_template = 'Date: {}\nArweave transactions: {}\nArweave transaction fees: {}\nArweave block reward: {' \
@@ -71,3 +72,7 @@ def run():
     msg = msg_template.format(data['date'], data['ar_tx'], data['ar_tx_fee'], data['ar_endowment_growth'],
                               data['ar_block_reward'], data['pepe_volume'])
     send_tg_msg(msg)
+
+
+def handler(event, context):
+    run()
