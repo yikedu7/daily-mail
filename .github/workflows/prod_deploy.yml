@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - name: Setup serverless framework
-        uses: Teakowa/setup-serverless@v2.0.4
+        uses: Teakowa/setup-serverless@v2
         with:
           provider: aws
         env:
