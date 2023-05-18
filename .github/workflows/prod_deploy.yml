@@ -26,6 +26,13 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Setup serverless framework
+        uses: Teakowa/setup-serverless@v2.0.4
+        with:
+          provider: aws
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
       - name: Install pip dependencies
         run: pip install -r requirements.txt
       - name: Install npm dependencies
@@ -36,10 +43,5 @@ jobs:
           envkey_TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           envkey_TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           file_name: .env
-      - name: serverless deploy
-        uses: serverless/github-action@v3.2
-        with:
-          args: deploy
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      - name: Deploy
+        run: sls deploy --stage prod --verbose
