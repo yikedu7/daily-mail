@@ -1,0 +1,21 @@
+service: daily-mail
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-python-requirements
+  - serverless-dotenv-plugin
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: prod
+
+
+functions:
+  dailyMail:
+    handler: handler.handler
+    timeout: 30
+    events:
+      # 00:00 (UTC+0) every day
+      - schedule: cron(0 0 * * ? *)
