@@ -6,7 +6,7 @@ import telegram
 from dotenv import load_dotenv
 
 
-def arweave_data(path):
+def arweave_data(path, date):
     base_url = 'https://api.viewblock.io/arweave/stats/advanced/charts'
     url = base_url + path
     headers = {
@@ -16,8 +16,14 @@ def arweave_data(path):
     if rsp.status_code != 200:
         return 'NaN'
     rsp_data = rsp.json()
-    # get yesterday's data
-    return rsp_data['day']['data'][1][-2]
+    stat_times = rsp_data['day']['data'][0]
+    stat_datas = rsp_data['day']['data'][1]
+    stat_index = len(stat_times) - 1
+    for i in range(len(stat_times)).__reversed__():
+        if datetime.datetime.fromtimestamp(stat_times[i] / 1000).date() == date.date():
+            stat_index = i
+            break
+    return stat_datas[stat_index]
 
 
 def cgc_data(coin, date, date_type):
@@ -49,10 +55,10 @@ def fetch_data():
     date = datetime.datetime.today() - datetime.timedelta(days=1)
     return {
         'date': date.strftime('%Y-%m-%d'),
-        'ar_tx': format_int_str(arweave_data('/tx?network=mainnet')),
-        'ar_tx_fee': format_float_str(arweave_data('/txFees?network=mainnet')) + ' AR',
-        'ar_block_reward': format_float_str(arweave_data('/blockReward?network=mainnet')) + ' AR',
-        'ar_endowment_growth': format_float_str(arweave_data('/endowmentGrowth?network=mainnet')) + ' AR',
+        'ar_tx': format_int_str(arweave_data('/tx?network=mainnet', date)),
+        'ar_tx_fee': format_float_str(arweave_data('/txFees?network=mainnet', date)) + ' AR',
+        'ar_block_reward': format_float_str(arweave_data('/blockReward?network=mainnet', date)) + ' AR',
+        'ar_endowment_growth': format_float_str(arweave_data('/endowmentGrowth?network=mainnet', date)) + ' AR',
         'pepe_volume': '$' + format_float_str(cgc_data('pepe', date, 'total_volume')),
     }
 
