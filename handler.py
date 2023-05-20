@@ -4,6 +4,7 @@ import datetime
 import asyncio
 import telegram
 from dotenv import load_dotenv
+import pandas as pd
 
 
 def arweave_data(path, date):
@@ -12,8 +13,11 @@ def arweave_data(path, date):
     headers = {
         'origin': 'https://viewblock.io',
     }
-    rsp = requests.get(url, headers=headers)
-    if rsp.status_code != 200:
+    try:
+        rsp = requests.get(url, headers=headers)
+        rsp.raise_for_status()
+    except Exception as e:
+        print(e)
         return 'NaN'
     rsp_data = rsp.json()
     stat_times = rsp_data['day']['data'][0]
@@ -26,58 +30,102 @@ def arweave_data(path, date):
     return stat_datas[stat_index]
 
 
-def cgc_data(coin, date, date_type):
+def cgc_coin_data(coin, date, date_type):
     url_template = 'https://api.coingecko.com/api/v3/coins/{}/history?date={}&localization=false'
     url = url_template.format(coin, date.strftime('%d-%m-%Y'))
     headers = {
         'accept': 'application/json',
     }
-    rsp = requests.get(url, headers=headers)
-    if rsp.status_code != 200:
+    try:
+        rsp = requests.get(url, headers=headers)
+        rsp.raise_for_status()
+    except Exception as e:
+        print(e)
         return 'NaN'
     rsp_data = rsp.json()
     return rsp_data['market_data'][date_type]['usd']
 
 
-def format_int_str(num):
-    if num == 'NaN':
-        return num
-    return format(int(num), ',d')
-
-
-def format_float_str(num):
-    if num == 'NaN':
-        return num
-    return format(float(num), ',.3f')
-
-
-def fetch_data():
-    date = datetime.datetime.today() - datetime.timedelta(days=1)
-    return {
-        'date': date.strftime('%Y-%m-%d'),
-        'ar_tx': format_int_str(arweave_data('/tx?network=mainnet', date)),
-        'ar_tx_fee': format_float_str(arweave_data('/txFees?network=mainnet', date)) + ' AR',
-        'ar_block_reward': format_float_str(arweave_data('/blockReward?network=mainnet', date)) + ' AR',
-        'ar_endowment_growth': format_float_str(arweave_data('/endowmentGrowth?network=mainnet', date)) + ' AR',
-        'pepe_volume': '$' + format_float_str(cgc_data('pepe', date, 'total_volume')),
+def cgc_global_data(date_type):
+    url = 'https://api.coingecko.com/api/v3/global'
+    headers = {
+        'accept': 'application/json',
     }
+    try:
+        rsp = requests.get(url, headers=headers)
+        rsp.raise_for_status()
+    except Exception as e:
+        print(e)
+        return 'NaN'
+    rsp_data = rsp.json()
+    return rsp_data['data'][date_type]['usd']
 
 
-def send_tg_msg(tg_msg):
+def pretty_num(num):
+    if type(num) is int:
+        return format(num, ',d')
+    elif type(num) is float:
+        return format(num, ',.3f')
+    else:
+        if num.isdigit():
+            return format(int(num), ',d')
+        elif num.replace('.', '', 1).isdigit():
+            return format(float(num), ',.3f')
+        else:
+            return num
+
+
+def get_yesterday():
+    return datetime.datetime.today() - datetime.timedelta(days=1)
+
+
+def fetch_data(date):
+    total_volume = cgc_global_data('total_volume')
+    pepe_volume = cgc_coin_data('pepe', date, 'total_volume')
+    pepe_volume_percent = float(pepe_volume) / float(total_volume) * 100
+    return pd.DataFrame(
+        {
+            date.strftime('%Y-%m-%d'): [
+                pretty_num(arweave_data('/tx?network=mainnet', date)),
+                pretty_num(arweave_data('/txFees?network=mainnet', date)) + ' AR',
+                pretty_num(arweave_data('/blockReward?network=mainnet', date)) + ' AR',
+                pretty_num(arweave_data('/endowmentGrowth?network=mainnet', date)) + ' AR',
+                '$' + pretty_num(total_volume),
+                '$' + pretty_num(pepe_volume),
+                pretty_num(pepe_volume_percent) + '%'
+            ]
+        },
+        index=[
+            'Arweave Transactions',
+            'Arweave Transaction Fees',
+            'Arweave Block Reward',
+            'Arweave Endowment Growth',
+            'Total Volume',
+            'Pepe Volume',
+            'Pepe Volume / Total Volume'
+        ]
+    )
+
+
+def send_tg_msg(data):
     bot_token = os.environ.get('TG_BOT_TOKEN')
     chat_id = os.environ.get('TG_CHAT_ID')
-    asyncio.run(telegram.Bot(token=bot_token).send_message(chat_id=chat_id, text=tg_msg))
+    bot = telegram.Bot(token=bot_token)
+    asyncio.run(
+        bot.send_message(
+            chat_id=chat_id,
+            text='```\n' + data.to_string() + '\n```',
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2
+        )
+    )
 
 
 def run():
     load_dotenv()
-    data = fetch_data()
-    print('Fetched date: {}'.format(data))
-    msg_template = 'Date: {}\nArweave transactions: {}\nArweave transaction fees: {}\nArweave block reward: {' \
-                   '}\nArweave endowment growth: {}\nPepe volume: {}'
-    msg = msg_template.format(data['date'], data['ar_tx'], data['ar_tx_fee'], data['ar_endowment_growth'],
-                              data['ar_block_reward'], data['pepe_volume'])
-    send_tg_msg(msg)
+    date = get_yesterday()
+    data = fetch_data(date)
+    print('Fetched data:\n' + data.to_string())
+    send_tg_msg(data)
 
 
 def handler(event, context):
