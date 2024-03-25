@@ -30,7 +30,7 @@ def arweave_data(path, date):
     return stat_datas[stat_index]
 
 
-def cgc_coin_data(coin, date, date_type):
+def cgc_coin_history_data(coin, date, date_type):
     url_template = 'https://api.coingecko.com/api/v3/coins/{}/history?date={}&localization=false'
     url = url_template.format(coin, date.strftime('%d-%m-%Y'))
     headers = {
@@ -44,6 +44,22 @@ def cgc_coin_data(coin, date, date_type):
         return 'NaN'
     rsp_data = rsp.json()
     return rsp_data['market_data'][date_type]['usd']
+
+
+def cgc_coin_data(coins, date_type):
+    url_template = 'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids={}'
+    url = url_template.format(','.join(coins))
+    headers = {
+        'accept': 'application/json',
+    }
+    try:
+        rsp = requests.get(url, headers=headers)
+        rsp.raise_for_status()
+    except Exception as e:
+        print(e)
+        return 'NaN'
+    rsp_data = rsp.json()
+    return [coin[date_type] for coin in rsp_data]
 
 
 def cgc_global_data(date_type):
@@ -80,9 +96,13 @@ def get_yesterday():
 
 
 def fetch_data(date):
+    # pepe
     total_volume = cgc_global_data('total_volume')
-    pepe_volume = cgc_coin_data('pepe', date, 'total_volume')
+    pepe_volume = cgc_coin_history_data('pepe', date, 'total_volume')
     pepe_volume_percent = float(pepe_volume) / float(total_volume) * 100
+    # fiat
+    fiat_coins = ['tether', 'usd-coin']
+    fiat_market_cap = sum(cgc_coin_data(fiat_coins, 'market_cap'))
     return pd.DataFrame(
         {
             date.strftime('%Y-%m-%d'): [
@@ -92,7 +112,8 @@ def fetch_data(date):
                 pretty_num(arweave_data('/endowmentGrowth?network=mainnet', date)) + ' AR',
                 '$' + pretty_num(total_volume),
                 '$' + pretty_num(pepe_volume),
-                pretty_num(pepe_volume_percent) + '%'
+                pretty_num(pepe_volume_percent) + '%',
+                '$' + pretty_num(fiat_market_cap),
             ]
         },
         index=[
@@ -102,7 +123,8 @@ def fetch_data(date):
             'Arweave Endowment Growth',
             'Total Volume',
             'Pepe Volume',
-            'Pepe Volume / Total Volume'
+            'Pepe Volume / Total Volume',
+            'Fiat Market Cap',
         ]
     )
 
